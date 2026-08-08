@@ -18,18 +18,32 @@ async function generateSpeech(text, voice, outPath) {
   return outPath;
 }
 
-async function transcribeWordTimestamps(audioPath) {
-  const transcription = await withRetry(
-    () =>
-      groq.audio.transcriptions.create({
-        file: fs.createReadStream(audioPath),
-        model: 'whisper-large-v3',
-        response_format: 'verbose_json',
-        timestamp_granularities: ['word'],
-      }),
-    { label: 'استخراج توقيت الكلمات (Whisper)' }
+async function compressForWhisper(audioPath) {
+  const compressedPath = audioPath.replace(/\.[^.]+$/, '_whisper.mp3');
+  await execAsync(
+    `ffmpeg -y -i "${audioPath}" -ar 16000 -ac 1 -c:a libmp3lame -b:a 32k "${compressedPath}"`,
+    { maxBuffer: 1024 * 1024 * 20 }
   );
-  return transcription.words || [];
+  return compressedPath;
+}
+
+async function transcribeWordTimestamps(audioPath) {
+  const compressedPath = await compressForWhisper(audioPath);
+  try {
+    const transcription = await withRetry(
+      () =>
+        groq.audio.transcriptions.create({
+          file: fs.createReadStream(compressedPath),
+          model: 'whisper-large-v3',
+          response_format: 'verbose_json',
+          timestamp_granularities: ['word'],
+        }),
+      { label: 'استخراج توقيت الكلمات (Whisper)' }
+    );
+    return transcription.words || [];
+  } finally {
+    fs.unlink(compressedPath, () => {});
+  }
 }
 
 function secToAssTime(sec) {
