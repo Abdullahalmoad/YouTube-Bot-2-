@@ -5,58 +5,93 @@ const translateService = require('./services/translate.service');
 const audioMixService = require('./services/audio-mix.service');
 const captionService = require('./services/caption.service');
 const thumbnailService = require('./services/thumbnail.service');
+const uploadService = require('./services/upload.service');
+const telegramService = require('./services/telegram.service');
 
 const VOICE = 'en-US-GuyNeural';
 
 async function runPipeline(youtubeUrl) {
-  console.log('1) تحميل الفيديو...');
-  const { videoId, jobDir, videoPath, thumbPath } = await downloadService.downloadVideo(youtubeUrl);
-  const metadata = await downloadService.getVideoMetadata(youtubeUrl);
+  let step = '0) بداية التشغيل';
+  try {
+    step = '1) تحميل الفيديو';
+    console.log('1) تحميل الفيديو...');
+    const { videoId, jobDir, videoPath, thumbPath } = await downloadService.downloadVideo(youtubeUrl);
+    const metadata = await downloadService.getVideoMetadata(youtubeUrl);
 
-  console.log('2) فصل الصوت الأصلي...');
-  const audioPath = await downloadService.extractAudio(videoPath);
+    step = '2) فصل الصوت الأصلي';
+    console.log('2) فصل الصوت الأصلي...');
+    const audioPath = await downloadService.extractAudio(videoPath);
 
-  console.log('3) تفريغ النص العربي...');
-  const { segments } = await transcribeService.transcribeArabic(audioPath);
+    step = '3) تفريغ النص العربي';
+    console.log('3) تفريغ النص العربي...');
+    const { segments } = await transcribeService.transcribeArabic(audioPath);
 
-  console.log('4) ترجمة النص للإنجليزي...');
-  const translated = await translateService.translateSegments(segments);
+    step = '4) ترجمة النص للإنجليزي';
+    console.log('4) ترجمة النص للإنجليزي...');
+    const translated = await translateService.translateSegments(segments);
 
-  console.log('5) توليد الصوت الإنجليزي لكل جملة...');
-  const segmentFiles = await audioMixService.synthesizeSegments(translated, VOICE, jobDir);
+    step = '5) توليد الصوت الإنجليزي';
+    console.log('5) توليد الصوت الإنجليزي لكل جملة...');
+    const segmentFiles = await audioMixService.synthesizeSegments(translated, VOICE, jobDir);
 
-  console.log('6) دمج المقاطع الصوتية...');
-  const fullAudioPath = path.join(jobDir, 'full_audio_en.wav');
-  const videoDuration = await audioMixService.getDuration(videoPath);
-  await audioMixService.buildFullAudioTrack(segmentFiles, videoDuration, fullAudioPath);
+    step = '6) دمج المقاطع الصوتية';
+    console.log('6) دمج المقاطع الصوتية...');
+    const fullAudioPath = path.join(jobDir, 'full_audio_en.wav');
+    const videoDuration = await audioMixService.getDuration(videoPath);
+    await audioMixService.buildFullAudioTrack(segmentFiles, videoDuration, fullAudioPath);
 
-  console.log('7) استبدال صوت الفيديو...');
-  const dubbedVideoPath = path.join(jobDir, 'video_dubbed.mp4');
-  await audioMixService.replaceAudio(videoPath, fullAudioPath, dubbedVideoPath);
+    step = '7) استبدال صوت الفيديو';
+    console.log('7) استبدال صوت الفيديو...');
+    const dubbedVideoPath = path.join(jobDir, 'video_dubbed.mp4');
+    await audioMixService.replaceAudio(videoPath, fullAudioPath, dubbedVideoPath);
 
-  console.log('8) استخراج توقيت الكلمات للكابشن...');
-  const words = await captionService.transcribeWordTimestamps(fullAudioPath);
+    step = '8) استخراج توقيت الكلمات للكابشن';
+    console.log('8) استخراج توقيت الكلمات للكابشن...');
+    const words = await captionService.transcribeWordTimestamps(fullAudioPath);
 
-  console.log('9) بناء وحرق الكابشن...');
-  const assPath = path.join(jobDir, 'captions.ass');
-  captionService.buildAssCaptions(words, assPath);
-  const finalVideoPath = path.join(jobDir, 'video_final.mp4');
-  await captionService.burnCaptions(dubbedVideoPath, assPath, finalVideoPath);
+    step = '9) بناء وحرق الكابشن';
+    console.log('9) بناء وحرق الكابشن...');
+    const assPath = path.join(jobDir, 'captions.ass');
+    captionService.buildAssCaptions(words, assPath);
+    const finalVideoPath = path.join(jobDir, 'video_final.mp4');
+    await captionService.burnCaptions(dubbedVideoPath, assPath, finalVideoPath);
 
-  console.log('10) تعديل الثمبنيل...');
-  let finalThumbPath = thumbPath;
-  if (thumbPath) {
-    const titleEn = (await translateService.translateSegments([{ start: 0, end: 1, text: metadata.title }]))[0].textEn;
-    const editedThumbPath = path.join(jobDir, 'thumbnail_en.jpg');
-    const result = await thumbnailService.editThumbnail(thumbPath, titleEn, editedThumbPath);
-    finalThumbPath = result.outputPath;
+    step = '10) ترجمة وتدقيق العنوان + تعديل الثمبنيل';
+    console.log('10) ترجمة وتدقيق العنوان + تعديل الثمبنيل...');
+    let titleEn = (await translateService.translateSegments([{ start: 0, end: 1, text: metadata.title }]))[0].textEn;
+    titleEn = await translateService.proofreadTitle(titleEn);
+
+    let finalThumbPath = thumbPath;
+    if (thumbPath) {
+      const editedThumbPath = path.join(jobDir, 'thumbnail_en.jpg');
+      const result = await thumbnailService.editThumbnail(thumbPath, titleEn, editedThumbPath);
+      finalThumbPath = result.outputPath;
+    }
+
+    console.log('✅ الفيديو جاهز:', finalVideoPath);
+    console.log('✅ الثمبنيل جاهز:', finalThumbPath);
+    console.log('✅ العنوان بعد التدقيق:', titleEn);
+
+    step = '11) رفع الفيديو على يوتيوب';
+    console.log('11) رفع الفيديو على يوتيوب...');
+    const descriptionEn = translated.map(seg => seg.textEn).join(' ').slice(0, 4900);
+    const uploadResult = await uploadService.uploadVideo({
+      videoPath: finalVideoPath,
+      title: titleEn,
+      description: descriptionEn,
+      tags: [],
+      thumbnailPath: finalThumbPath,
+      privacyStatus: 'public',
+    });
+
+    console.log('✅ تم النشر:', uploadResult.url);
+
+    return { videoId, finalVideoPath, finalThumbPath, metadata, uploadResult };
+  } catch (error) {
+    console.error(`❌ فشل بالخطوة: ${step}`, error);
+    await telegramService.sendErrorAlert(step, error);
+    throw error;
   }
-
-  console.log('✅ الفيديو جاهز:', finalVideoPath);
-  console.log('✅ الثمبنيل جاهز:', finalThumbPath);
-  console.log('⏳ رفع اليوتيوب: راح يصير بخدمة منفصلة (upload.service.js)');
-
-  return { videoId, finalVideoPath, finalThumbPath, metadata };
 }
 
 module.exports = { runPipeline };

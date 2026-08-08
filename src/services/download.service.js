@@ -5,6 +5,8 @@ const fs = require('fs');
 const execAsync = promisify(exec);
 
 const TEMP_DIR = path.join(__dirname, '..', '..', 'temp');
+const COOKIES_PATH = path.join(__dirname, '..', '..', 'cookies.txt');
+const COOKIES_FLAG = fs.existsSync(COOKIES_PATH) ? `--cookies "${COOKIES_PATH}"` : '';
 
 // يطلع video id من رابط يوتيوب
 function getVideoId(url) {
@@ -22,7 +24,7 @@ function getJobDir(videoId) {
 
 // يجيب بيانات الفيديو (عنوان، وصف، ثمبنيل) بدون تحميل
 async function getVideoMetadata(url) {
-  const { stdout } = await execAsync(`yt-dlp -j "${url}"`, { maxBuffer: 1024 * 1024 * 20 });
+  const { stdout } = await execAsync(`yt-dlp ${COOKIES_FLAG} -j "${url}"`, { maxBuffer: 1024 * 1024 * 20 });
   const meta = JSON.parse(stdout);
   return {
     id: meta.id,
@@ -41,7 +43,7 @@ async function downloadVideo(url) {
   const thumbPath = path.join(jobDir, 'thumbnail.jpg');
 
   await execAsync(
-    `yt-dlp -f "bv*[ext=mp4]+ba[ext=m4a]/b[ext=mp4]" -o "${videoPath}" --write-thumbnail --convert-thumbnails jpg "${url}"`,
+    `yt-dlp ${COOKIES_FLAG} -f "bv*[ext=mp4]+ba[ext=m4a]/b[ext=mp4]" -o "${videoPath}" --write-thumbnail --convert-thumbnails jpg "${url}"`,
     { maxBuffer: 1024 * 1024 * 50 }
   );
 

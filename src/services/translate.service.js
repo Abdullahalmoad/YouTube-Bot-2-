@@ -49,6 +49,27 @@ ${numbered}`;
   }));
 }
 
+// يدقق العنوان الإنجليزي لغوياً (قواعد، إملاء، صياغة) قبل الرفع على يوتيوب
+async function proofreadTitle(title) {
+  const prompt = `You are a professional English copy editor for YouTube titles.
+
+Fix any grammar, spelling, or phrasing issues in the following YouTube video title. Keep it natural, catchy, and under 100 characters. Do NOT change the meaning or add new claims. Return ONLY the corrected title, with no quotes, no explanation, and no extra text.
+
+Title:
+${title}`;
+
+  const completion = await groq.chat.completions.create({
+    model: MODEL,
+    messages: [{ role: 'user', content: prompt }],
+    temperature: 0.2,
+  });
+
+  let fixed = completion.choices[0].message.content.trim();
+  fixed = fixed.replace(/^["']|["']$/g, ''); // يشيل علامات اقتباس إذا زادها الموديل
+  return fixed.slice(0, 100);
+}
+
 module.exports = {
   translateSegments,
+  proofreadTitle,
 };

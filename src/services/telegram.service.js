@@ -1,5 +1,4 @@
 require('dotenv').config();
-const fetch = require('node-fetch');
 
 const TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const API_BASE = `https://api.telegram.org/bot${TOKEN}`;
@@ -8,15 +7,13 @@ if (!TOKEN) {
   throw new Error('TELEGRAM_BOT_TOKEN مفقود من .env');
 }
 
-// يطلع رابط يوتيوب من نص لو موجود
 function extractYoutubeUrl(text) {
   if (!text) return null;
-  const regex = /(https?:\/\/)?(www\.)?(youtube\.com\/watch\?v=|youtu\.be\/)[\w-]+/i;
+  const regex = /(https?:\/\/)?(www\.)?(youtube\.com\/(watch\?v=|shorts\/)|youtu\.be\/)[\w-]+/i;
   const match = text.match(regex);
   return match ? match[0] : null;
 }
 
-// يجيب آخر التحديثات (رسايل) من البوت
 async function getUpdates(offset = 0) {
   const url = `${API_BASE}/getUpdates?offset=${offset}&timeout=10`;
   const res = await fetch(url);
@@ -27,7 +24,6 @@ async function getUpdates(offset = 0) {
   return data.result;
 }
 
-// يدور على أحدث رسالة فيها رابط يوتيوب صالح
 async function getLatestYoutubeMessage(offset = 0) {
   const updates = await getUpdates(offset);
   for (const update of updates) {
@@ -45,7 +41,6 @@ async function getLatestYoutubeMessage(offset = 0) {
   return null;
 }
 
-// يرسل رسالة رد للمستخدم
 async function sendMessage(chatId, text) {
   const url = `${API_BASE}/sendMessage`;
   const res = await fetch(url, {
@@ -60,9 +55,24 @@ async function sendMessage(chatId, text) {
   return data.result;
 }
 
+async function sendErrorAlert(stepLabel, error) {
+  const chatId = process.env.TELEGRAM_CHAT_ID;
+  if (!chatId) {
+    console.error('⚠️ TELEGRAM_CHAT_ID مفقود من .env — ما راح يوصل إشعار خطأ');
+    return;
+  }
+  const text = `❌ فشل البوت\nالخطوة: ${stepLabel}\nالسبب: ${error.message}`;
+  try {
+    await sendMessage(chatId, text);
+  } catch (notifyErr) {
+    console.error('⚠️ فشل إرسال إشعار الخطأ نفسه:', notifyErr.message);
+  }
+}
+
 module.exports = {
   extractYoutubeUrl,
   getUpdates,
   getLatestYoutubeMessage,
   sendMessage,
+  sendErrorAlert,
 };
