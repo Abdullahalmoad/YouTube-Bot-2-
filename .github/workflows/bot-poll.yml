@@ -1,0 +1,77 @@
+name: Telegram Bot Poll
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+concurrency:
+  group: bot-poll
+  cancel-in-progress: false
+
+jobs:
+  poll:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install ffmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+
+      - name: Install yt-dlp
+        run: |
+          sudo curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp
+          sudo chmod a+rx /usr/local/bin/yt-dlp
+
+      - name: Install Deno
+        run: |
+          curl -fsSL https://deno.land/install.sh | sh
+          echo "$HOME/.deno/bin" >> "$GITHUB_PATH"
+
+      - name: Install Node deps
+        run: npm install
+
+      - name: Install Python deps
+        run: pip install edge-tts groq librosa soundfile numpy pillow --break-system-packages
+
+      - name: Write .env
+        run: |
+          cat > .env << ENVEOF
+          TELEGRAM_BOT_TOKEN=${{ secrets.TELEGRAM_BOT_TOKEN }}
+          GROQ_API_KEY=${{ secrets.GROQ_API_KEY }}
+          YOUTUBE_CLIENT_ID=${{ secrets.YOUTUBE_CLIENT_ID }}
+          YOUTUBE_CLIENT_SECRET=${{ secrets.YOUTUBE_CLIENT_SECRET }}
+          YOUTUBE_REFRESH_TOKEN=${{ secrets.YOUTUBE_REFRESH_TOKEN }}
+          YOUTUBE_CHANNEL_ID=${{ secrets.YOUTUBE_CHANNEL_ID }}
+          TELEGRAM_CHAT_ID=${{ secrets.TELEGRAM_CHAT_ID }}
+          ENVEOF
+
+      - name: Write cookies.txt
+        run: echo "${{ secrets.YT_COOKIES }}" | base64 -d > cookies.txt
+
+      - name: Run bot check
+        run: node src/check-once.js
+
+      - name: Save offset state
+        if: always()
+        run: |
+          git config user.name "bot-runner"
+          git config user.email "bot@runner.local"
+          git add .state/offset.txt 2>/dev/null || true
+          git diff --cached --quiet || git commit -m "chore: update bot offset [skip ci]"
+          git push || true
