@@ -3,14 +3,16 @@ const Groq = require('groq-sdk');
 
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 const MODEL = 'llama-3.3-70b-versatile';
+const BATCH_SIZE = 25; // نقسم الجمل لدفعات عشان نتجنب تجاوز حد الموديل بالفيديوهات الطويلة
 
-// يترجم مصفوفة segments عربية لإنجليزي دفعة وحدة (يحافظ على السياق)
-async function translateSegments(segments) {
+// يترجم دفعة وحدة من الجمل (مقسّمة مسبقاً)
+async function translateBatch(segments, batchIndex, totalBatches) {
   const numbered = segments
     .map((s, i) => `${i + 1}. ${s.text}`)
     .join('\n');
 
   const prompt = `ترجم الجمل التالية من العربية للإنجليزية لفيديو يوتيوب علمي قصير (Did you know / What if style).
+هذي دفعة ${batchIndex + 1} من ${totalBatches} من نفس الفيديو، ترجمها بشكل مستقل ومتناسق مع الأسلوب.
 
 قواعد صارمة:
 - ترجمة طبيعية وسلسة، مو حرفية
@@ -31,13 +33,35 @@ ${numbered}`;
   const raw = completion.choices[0].message.content.trim();
   const jsonMatch = raw.match(/\[[\s\S]*\]/);
   if (!jsonMatch) {
-    throw new Error('فشل استخراج JSON من رد الترجمة: ' + raw);
+    throw new Error(`فشل استخراج JSON من رد الترجمة (دفعة ${batchIndex + 1}): ` + raw);
   }
 
   const translations = JSON.parse(jsonMatch[0]);
   if (translations.length !== segments.length) {
     throw new Error(
-      `عدد الترجمات (${translations.length}) لا يطابق عدد الجمل الأصلية (${segments.length})`
+      `عدد الترجمات (${translations.length}) لا يطابق عدد الجمل بالدفعة ${batchIndex + 1} (${segments.length})`
+    );
+  }
+
+  return translations;
+}
+
+// يترجم مصفوفة segments عربية لإنجليزي، مقسّمة لدفعات صغيرة لتفادي حدود الموديل بالفيديوهات الطويلة
+async function translateSegments(segments) {
+  const batches = [];
+  for (let i = 0; i < segments.length; i += BATCH_SIZE) {
+    batches.push(segments.slice(i, i + BATCH_SIZE));
+  }
+
+  const allTranslations = [];
+  for (let b = 0; b < batches.length; b++) {
+    const translations = await translateBatch(batches[b], b, batches.length);
+    allTranslations.push(...translations);
+  }
+
+  if (allTranslations.length !== segments.length) {
+    throw new Error(
+      `عدد الترجمات الكلي (${allTranslations.length}) لا يطابق عدد الجمل الأصلية (${segments.length})`
     );
   }
 
@@ -46,7 +70,7 @@ ${numbered}`;
     start: s.start,
     end: s.end,
     textAr: s.text,
-    textEn: translations[i],
+    textEn: allTranslations[i],
   }));
 }
 
