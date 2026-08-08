@@ -4,11 +4,11 @@ const { promisify } = require('util');
 const fs = require('fs');
 const path = require('path');
 const Groq = require('groq-sdk');
+const { withRetry } = require('./retry.util');
 const execAsync = promisify(exec);
 
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
-// يولد صوت إنجليزي عبر Edge-TTS (بايثون)
 async function generateSpeech(text, voice, outPath) {
   const script = path.join(__dirname, '..', 'python', 'generate_tts.py');
   const escaped = text.replace(/"/g, '\\"');
@@ -18,14 +18,17 @@ async function generateSpeech(text, voice, outPath) {
   return outPath;
 }
 
-// يحلل الصوت عبر Groq Whisper ويرجع توقيت دقيق لكل كلمة
 async function transcribeWordTimestamps(audioPath) {
-  const transcription = await groq.audio.transcriptions.create({
-    file: fs.createReadStream(audioPath),
-    model: 'whisper-large-v3',
-    response_format: 'verbose_json',
-    timestamp_granularities: ['word'],
-  });
+  const transcription = await withRetry(
+    () =>
+      groq.audio.transcriptions.create({
+        file: fs.createReadStream(audioPath),
+        model: 'whisper-large-v3',
+        response_format: 'verbose_json',
+        timestamp_granularities: ['word'],
+      }),
+    { label: 'استخراج توقيت الكلمات (Whisper)' }
+  );
   return transcription.words || [];
 }
 
@@ -36,7 +39,6 @@ function secToAssTime(sec) {
   return `${h}:${String(m).padStart(2, '0')}:${s.toFixed(2).padStart(5, '0')}`;
 }
 
-// يبني ملف ترجمة ASS بتأثير كاريوكي (كلمة تتلون ذهبي وقت نطقها)
 function buildAssCaptions(words, outputPath, opts = {}) {
   const {
     maxWordsPerLine = 6,
@@ -93,7 +95,6 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
   return outputPath;
 }
 
-// يحرق ملف الترجمة فوق الفيديو
 async function burnCaptions(videoPath, assPath, outputPath) {
   await execAsync(
     `ffmpeg -y -i "${videoPath}" -vf "ass=${assPath}" -c:a copy "${outputPath}"`,

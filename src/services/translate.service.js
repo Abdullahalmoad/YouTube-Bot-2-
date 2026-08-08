@@ -1,5 +1,6 @@
 require('dotenv').config();
 const Groq = require('groq-sdk');
+const { withRetry } = require('./retry.util');
 
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 const MODEL = 'llama-3.3-70b-versatile';
@@ -25,11 +26,15 @@ async function translateBatch(segments, batchIndex, totalBatches, retries = 2) {
 ${numbered}`;
 
   for (let attempt = 1; attempt <= retries + 1; attempt++) {
-    const completion = await groq.chat.completions.create({
-      model: MODEL,
-      messages: [{ role: 'user', content: prompt }],
-      temperature: attempt === 1 ? 0.3 : 0.1,
-    });
+    const completion = await withRetry(
+      () =>
+        groq.chat.completions.create({
+          model: MODEL,
+          messages: [{ role: 'user', content: prompt }],
+          temperature: attempt === 1 ? 0.3 : 0.1,
+        }),
+      { label: `ترجمة الدفعة ${batchIndex + 1}` }
+    );
 
     const raw = completion.choices[0].message.content.trim();
     const jsonMatch = raw.match(/\[[\s\S]*\]/);
@@ -67,11 +72,15 @@ async function translateSentenceBySentence(segments) {
 Arabic sentence:
 ${s.text}`;
 
-    const completion = await groq.chat.completions.create({
-      model: MODEL,
-      messages: [{ role: 'user', content: prompt }],
-      temperature: 0.2,
-    });
+    const completion = await withRetry(
+      () =>
+        groq.chat.completions.create({
+          model: MODEL,
+          messages: [{ role: 'user', content: prompt }],
+          temperature: 0.2,
+        }),
+      { label: 'ترجمة جملة منفردة (fallback)' }
+    );
 
     let text = completion.choices[0].message.content.trim();
     text = text.replace(/^["']|["']$/g, '');
@@ -115,11 +124,15 @@ Fix any grammar, spelling, or phrasing issues in the following YouTube video tit
 Title:
 ${title}`;
 
-  const completion = await groq.chat.completions.create({
-    model: MODEL,
-    messages: [{ role: 'user', content: prompt }],
-    temperature: 0.2,
-  });
+  const completion = await withRetry(
+    () =>
+      groq.chat.completions.create({
+        model: MODEL,
+        messages: [{ role: 'user', content: prompt }],
+        temperature: 0.2,
+      }),
+    { label: 'تدقيق العنوان' }
+  );
 
   let fixed = completion.choices[0].message.content.trim();
   fixed = fixed.replace(/^["']|["']$/g, '');
