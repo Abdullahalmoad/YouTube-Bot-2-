@@ -3,12 +3,13 @@ const downloadService = require('./services/download.service');
 const transcribeService = require('./services/transcribe.service');
 const translateService = require('./services/translate.service');
 const audioMixService = require('./services/audio-mix.service');
+const genderService = require('./services/gender.service');
 const captionService = require('./services/caption.service');
 const thumbnailService = require('./services/thumbnail.service');
 const uploadService = require('./services/upload.service');
 const telegramService = require('./services/telegram.service');
 
-const VOICE = 'en-US-GuyNeural';
+const VOICES = { male: 'en-US-GuyNeural', female: 'en-US-JennyNeural' };
 
 async function runPipeline(youtubeUrl) {
   let step = '0) بداية التشغيل';

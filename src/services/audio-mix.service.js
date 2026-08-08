@@ -12,13 +12,14 @@ async function getDuration(filePath) {
   return parseFloat(stdout.trim());
 }
 
-async function synthesizeSegments(segments, voice, jobDir) {
+async function synthesizeSegments(segments, voices, jobDir) {
   const results = [];
   for (let i = 0; i < segments.length; i++) {
     const seg = segments[i];
     const rawPath = path.join(jobDir, `seg_${i}_raw.mp3`);
     const adjPath = path.join(jobDir, `seg_${i}.wav`);
 
+    const voice = seg.gender === 'female' ? voices.female : voices.male;
     await captionService.generateSpeech(seg.textEn, voice, rawPath);
     const actualDur = await getDuration(rawPath);
     const targetDur = Math.max(0.3, seg.end - seg.start);

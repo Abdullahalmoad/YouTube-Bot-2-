@@ -42,6 +42,7 @@ ${numbered}`;
   }
 
   return segments.map((s, i) => ({
+    ...s,
     start: s.start,
     end: s.end,
     textAr: s.text,
