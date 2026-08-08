@@ -47,16 +47,20 @@ async function uploadVideo({ videoPath, title, description, tags = [], thumbnail
   const videoId = res.data.id;
   console.log('✅ تم رفع الفيديو:', videoId);
 
-  // يرفع الثمبنيل المخصص إذا موجود
+  // يرفع الثمبنيل المخصص إذا موجود (فشل الثمبنيل لا يوقف العملية، الفيديو انرفع أصلاً)
   if (thumbnailPath && fs.existsSync(thumbnailPath)) {
-    console.log('⏫ رفع الثمبنيل...');
-    await youtube.thumbnails.set({
-      videoId,
-      media: {
-        body: fs.createReadStream(thumbnailPath),
-      },
-    });
-    console.log('✅ تم رفع الثمبنيل');
+    try {
+      console.log('⏫ رفع الثمبنيل...');
+      await youtube.thumbnails.set({
+        videoId,
+        media: {
+          body: fs.createReadStream(thumbnailPath),
+        },
+      });
+      console.log('✅ تم رفع الثمبنيل');
+    } catch (thumbError) {
+      console.error('⚠️ فشل رفع الثمبنيل (الفيديو انرفع بنجاح رغم ذلك):', thumbError.message);
+    }
   }
 
   return {
