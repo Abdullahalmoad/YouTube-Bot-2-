@@ -10,7 +10,7 @@ const COOKIES_FLAG = fs.existsSync(COOKIES_PATH) ? `--cookies "${COOKIES_PATH}"`
 
 // يطلع video id من رابط يوتيوب
 function getVideoId(url) {
-  const match = url.match(/(?:v=|youtu\.be\/)([\w-]{11})/);
+  const match = url.match(/(?:v=|youtu\.be\/|shorts\/)([\w-]{11})/);
   if (!match) throw new Error('رابط يوتيوب غير صالح: ' + url);
   return match[1];
 }
@@ -24,7 +24,7 @@ function getJobDir(videoId) {
 
 // يجيب بيانات الفيديو (عنوان، وصف، ثمبنيل) بدون تحميل
 async function getVideoMetadata(url) {
-  const { stdout } = await execAsync(`yt-dlp ${COOKIES_FLAG} -j "${url}"`, { maxBuffer: 1024 * 1024 * 20 });
+  const { stdout } = await execAsync(`yt-dlp --remote-components ejs:github ${COOKIES_FLAG} -j "${url}"`, { maxBuffer: 1024 * 1024 * 20 });
   const meta = JSON.parse(stdout);
   return {
     id: meta.id,
@@ -43,7 +43,7 @@ async function downloadVideo(url) {
   const thumbPath = path.join(jobDir, 'thumbnail.jpg');
 
   await execAsync(
-    `yt-dlp ${COOKIES_FLAG} -f "bv*[ext=mp4]+ba[ext=m4a]/b[ext=mp4]" -o "${videoPath}" --write-thumbnail --convert-thumbnails jpg "${url}"`,
+    `yt-dlp --remote-components ejs:github ${COOKIES_FLAG} -f "bv*[ext=mp4]+ba[ext=m4a]/b[ext=mp4]" -o "${videoPath}" --write-thumbnail --convert-thumbnails jpg "${url}"`,
     { maxBuffer: 1024 * 1024 * 50 }
   );
 
