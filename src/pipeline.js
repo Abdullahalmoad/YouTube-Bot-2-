@@ -6,6 +6,7 @@ const audioMixService = require('./services/audio-mix.service');
 const genderService = require('./services/gender.service');
 const captionService = require('./services/caption.service');
 const thumbnailService = require('./services/thumbnail.service');
+const textCardService = require('./services/text-card.service');
 const uploadService = require('./services/upload.service');
 const telegramService = require('./services/telegram.service');
 
@@ -62,8 +63,16 @@ async function runPipeline(youtubeUrl) {
     console.log('9) بناء وحرق الكابشن...');
     const assPath = path.join(jobDir, 'captions.ass');
     captionService.buildAssCaptions(words, assPath);
-    const finalVideoPath = path.join(jobDir, 'video_final.mp4');
+    let finalVideoPath = path.join(jobDir, 'video_final.mp4');
     await captionService.burnCaptions(dubbedVideoPath, assPath, finalVideoPath);
+
+    step = '9.5) استبدال الكتابة العربية المثبتة بالفيديو';
+    console.log('9.5) استبدال الكتابة العربية المثبتة بالفيديو...');
+    const rawCards = await textCardService.detectTextCards(videoPath, jobDir);
+    const editedCards = await textCardService.buildEditedCards(rawCards, jobDir);
+    const finalVideoPathWithCards = path.join(jobDir, 'video_final_cards.mp4');
+    await textCardService.overlayTextCards(finalVideoPath, editedCards, finalVideoPathWithCards);
+    finalVideoPath = finalVideoPathWithCards;
 
     step = '10) ترجمة وتدقيق العنوان + تعديل الثمبنيل';
     console.log('10) ترجمة وتدقيق العنوان + تعديل الثمبنيل...');

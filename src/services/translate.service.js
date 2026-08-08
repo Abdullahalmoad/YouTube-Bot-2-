@@ -139,7 +139,19 @@ ${title}`;
   return fixed.slice(0, 100);
 }
 
+async function translateText(arabicText) {
+  if (!arabicText || !arabicText.trim()) return '';
+  const prompt = `ترجم النص التالي من العربية للإنجليزية بشكل طبيعي ومختصر، بدون أي شرح أو علامات اقتباس، رجّع الترجمة بس:\n\n${arabicText}`;
+  const completion = await groq.chat.completions.create({
+    model: MODEL,
+    messages: [{ role: 'user', content: prompt }],
+    temperature: 0.3,
+  });
+  return completion.choices[0].message.content.trim();
+}
+
 module.exports = {
   translateSegments,
+  translateText,
   proofreadTitle,
 };
