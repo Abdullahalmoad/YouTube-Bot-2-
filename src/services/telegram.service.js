@@ -14,14 +14,27 @@ function extractYoutubeUrl(text) {
   return match ? match[0] : null;
 }
 
-async function getUpdates(offset = 0) {
+async function getUpdates(offset = 0, retries = 3) {
   const url = `${API_BASE}/getUpdates?offset=${offset}&timeout=10`;
-  const res = await fetch(url);
-  const data = await res.json();
-  if (!data.ok) {
-    throw new Error(`فشل getUpdates: ${JSON.stringify(data)}`);
+  let lastError;
+
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      const res = await fetch(url);
+      const data = await res.json();
+      if (!data.ok) {
+        throw new Error(`فشل getUpdates: ${JSON.stringify(data)}`);
+      }
+      return data.result;
+    } catch (error) {
+      lastError = error;
+      console.error(`⚠️ محاولة ${attempt}/${retries} فشلت (getUpdates): ${error.message}`);
+      if (attempt < retries) {
+        await new Promise((resolve) => setTimeout(resolve, attempt * 2000)); // 2s, 4s...
+      }
+    }
   }
-  return data.result;
+  throw lastError;
 }
 
 async function getLatestYoutubeMessage(offset = 0) {

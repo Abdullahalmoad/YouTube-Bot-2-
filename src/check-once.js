@@ -57,7 +57,8 @@ async function main() {
   console.log('تم تحديث offset إلى:', offset);
 }
 
-main().catch((err) => {
+main().catch(async (err) => {
   console.error('خطأ عام:', err.message);
+  await telegramService.sendErrorAlert('فحص الرسائل (check-once)', err);
   process.exit(1);
 });
