@@ -77,4 +77,5 @@ jobs:
           git config user.email "bot@runner.local"
           git add .state/offset.txt 2>/dev/null || true
           git diff --cached --quiet || git commit -m "chore: update bot offset [skip ci]"
-          git push || true
+          git pull --no-rebase --quiet || true
+          git push
