@@ -31,9 +31,17 @@ async function runPipeline(youtubeUrl) {
     console.log('4) ترجمة النص للإنجليزي...');
     const translated = await translateService.translateSegments(segments);
 
+    step = '4.5) تحديد جنس المتحدث لكل جملة';
+    console.log('4.5) تحديد جنس المتحدث لكل جملة...');
+    const gendered = await genderService.detectGendersForSegments(segments, audioPath, jobDir);
+    const translatedWithGender = translated.map((seg, i) => ({
+      ...seg,
+      gender: gendered[i]?.gender || 'male',
+    }));
+
     step = '5) توليد الصوت الإنجليزي';
     console.log('5) توليد الصوت الإنجليزي لكل جملة...');
-    const segmentFiles = await audioMixService.synthesizeSegments(translated, VOICE, jobDir);
+    const segmentFiles = await audioMixService.synthesizeSegments(translatedWithGender, VOICES, jobDir);
 
     step = '6) دمج المقاطع الصوتية';
     console.log('6) دمج المقاطع الصوتية...');
