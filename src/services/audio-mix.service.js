@@ -30,14 +30,6 @@ async function generateSpeechWithRetry(text, voice, outPath, attempts = 3) {
   return false;
 }
 
-// ينشئ مقطع صمت بالمدة المطلوبة (حل بديل لو فشل توليد الصوت نهائياً)
-async function createSilence(durationSec, outPath) {
-  await execAsync(
-    `ffmpeg -y -f lavfi -i anullsrc=r=44100:cl=mono -t ${durationSec} "${outPath}"`,
-    { maxBuffer: 1024 * 1024 * 5 }
-  );
-}
-
 async function synthesizeSegments(segments, voices, jobDir) {
   const results = [];
   for (let i = 0; i < segments.length; i++) {
@@ -50,10 +42,7 @@ async function synthesizeSegments(segments, voices, jobDir) {
     const ok = await generateSpeechWithRetry(seg.textEn, voice, rawPath);
 
     if (!ok) {
-      console.warn(`⚠️ تعذر توليد صوت الجملة ${i + 1} نهائياً، رح نستخدم صمت بمكانها`);
-      await createSilence(targetDur, adjPath);
-      results.push({ path: adjPath, start: seg.start });
-      continue;
+      throw new Error(`فشل توليد صوت الجملة ${i + 1} نهائياً بعد كل المحاولات: "${seg.textEn}"`);
     }
 
     const actualDur = await getDuration(rawPath);
