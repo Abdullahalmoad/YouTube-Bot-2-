@@ -55,11 +55,13 @@ function secToAssTime(sec) {
 
 function buildAssCaptions(words, outputPath, opts = {}) {
   const {
+    wordByWord = true,
     maxWordsPerLine = 6,
     maxLineDuration = 3.0,
+    minWordDuration = 0.20,
     resX = 1920,
     resY = 1080,
-    fontSize = 72,
+    fontSize = 90,
     marginV = 250,
   } = opts;
 
@@ -77,33 +79,47 @@ Style: Karaoke,Arial,${fontSize},&H00FFFFFF,&H0000D7FF,&H00000000,&H00000000,1,0
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 `;
 
-  const lines = [];
-  let current = [];
-  let lineStart = null;
+  let events;
 
-  for (const w of words) {
-    if (current.length === 0) lineStart = w.start;
-    current.push(w);
-    const dur = w.end - lineStart;
-    if (current.length >= maxWordsPerLine || dur >= maxLineDuration) {
-      lines.push(current);
-      current = [];
+  if (wordByWord) {
+    events = words.map((w, i) => {
+      let start = w.start;
+      let end = w.end;
+      if (end - start < minWordDuration) end = start + minWordDuration;
+      const next = words[i + 1];
+      if (next && next.start > end) end = Math.min(next.start, end + 0.15);
+      const text = `{\\fscx110\\fscy110}${w.word.trim()}`;
+      return `Dialogue: 0,${secToAssTime(start)},${secToAssTime(end)},Karaoke,,0,0,0,,${text}`;
+    });
+  } else {
+    const lines = [];
+    let current = [];
+    let lineStart = null;
+
+    for (const w of words) {
+      if (current.length === 0) lineStart = w.start;
+      current.push(w);
+      const dur = w.end - lineStart;
+      if (current.length >= maxWordsPerLine || dur >= maxLineDuration) {
+        lines.push(current);
+        current = [];
+      }
     }
+    if (current.length) lines.push(current);
+
+    events = lines.map((line) => {
+      const start = line[0].start;
+      const end = line[line.length - 1].end;
+      let prevEnd = start;
+      let text = '';
+      for (const w of line) {
+        const durCs = Math.max(1, Math.round((w.end - prevEnd) * 100));
+        text += `{\\kf${durCs}}${w.word.trim()} `;
+        prevEnd = w.end;
+      }
+      return `Dialogue: 0,${secToAssTime(start)},${secToAssTime(end)},Karaoke,,0,0,0,,${text.trim()}`;
+    });
   }
-  if (current.length) lines.push(current);
-
-  const events = lines.map((line) => {
-    const start = line[0].start;
-    const end = line[line.length - 1].end;
-    let prevEnd = start;
-    let text = '';
-    for (const w of line) {
-      const durCs = Math.max(1, Math.round((w.end - prevEnd) * 100));
-      text += `{\\kf${durCs}}${w.word.trim()} `;
-      prevEnd = w.end;
-    }
-    return `Dialogue: 0,${secToAssTime(start)},${secToAssTime(end)},Karaoke,,0,0,0,,${text.trim()}`;
-  });
 
   fs.writeFileSync(outputPath, header + events.join('\n'), 'utf-8');
   return outputPath;
