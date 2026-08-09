@@ -66,13 +66,13 @@ async function runPipeline(youtubeUrl) {
     let finalVideoPath = path.join(jobDir, 'video_final.mp4');
     await captionService.burnCaptions(dubbedVideoPath, assPath, finalVideoPath);
 
-    step = '9.5) استبدال الكتابة العربية المثبتة بالفيديو';
-    console.log('9.5) استبدال الكتابة العربية المثبتة بالفيديو...');
-    const rawCards = await textCardService.detectTextCards(videoPath, jobDir);
-    const editedCards = await textCardService.buildEditedCards(rawCards, jobDir);
-    const finalVideoPathWithCards = path.join(jobDir, 'video_final_cards.mp4');
-    await textCardService.overlayTextCards(finalVideoPath, editedCards, finalVideoPathWithCards);
-    finalVideoPath = finalVideoPathWithCards;
+    // step = '9.5) استبدال الكتابة العربية المثبتة بالفيديو'; // معطّلة: كانت تخرب الفيديو
+    // console.log('9.5) استبدال الكتابة العربية المثبتة بالفيديو...');
+    // const rawCards = await textCardService.detectTextCards(videoPath, jobDir);
+    // const editedCards = await textCardService.buildEditedCards(rawCards, jobDir);
+    // const finalVideoPathWithCards = path.join(jobDir, 'video_final_cards.mp4');
+    // await textCardService.overlayTextCards(finalVideoPath, editedCards, finalVideoPathWithCards);
+    // finalVideoPath = finalVideoPathWithCards;
 
     step = '10) ترجمة وتدقيق العنوان + تعديل الثمبنيل';
     console.log('10) ترجمة وتدقيق العنوان + تعديل الثمبنيل...');
